@@ -160,9 +160,9 @@ object OntologyMapper {
     val grounders: Seq[EidosOntologyGrounder] = reader.components.ontologyHandler.grounders
     println(s"number of eidos ontologies - ${grounders.length}")
     // For purposes of this app, it is assumed that the primary grounder exists.
-    val primaryGrounder = grounders.find { grounder => grounder.name == EidosOntologyGrounder.PRIMARY_NAMESPACE }.get
-    val primaryConceptEmbeddings = primaryGrounder.conceptEmbeddings
-    val indicatorMaps = grounders.map { ontology: EidosOntologyGrounder =>
+    val (primaryGrounder, otherGrounders) = grounders.partition(grounder => grounder.name == EidosOntologyGrounder.PRIMARY_NAMESPACE)
+    val primaryConceptEmbeddings = primaryGrounder.head.conceptEmbeddings
+    val indicatorMaps = otherGrounders.map { ontology: EidosOntologyGrounder =>
       val namespace = ontology.name
       val concepts = ontology.conceptEmbeddings
       val mostSimilar: Map[String, Seq[(String, Float)]] = mostSimilarIndicators(primaryConceptEmbeddings, concepts, topN, reader).toMap
