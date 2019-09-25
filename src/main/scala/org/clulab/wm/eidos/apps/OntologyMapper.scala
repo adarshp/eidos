@@ -160,16 +160,17 @@ object OntologyMapper {
     val grounders: Seq[EidosOntologyGrounder] = reader.components.ontologyHandler.grounders
     println(s"number of eidos ontologies - ${grounders.length}")
     // For purposes of this app, it is assumed that the primary grounder exists.
-    val (primaryGrounder, otherGrounders) = grounders.partition(grounder => grounder.name == EidosOntologyGrounder.PRIMARY_NAMESPACE)
-    val primaryConceptEmbeddings = primaryGrounder.head.conceptEmbeddings
-    val indicatorMaps = otherGrounders.map { ontology: EidosOntologyGrounder =>
-      val namespace = ontology.name
-      val concepts = ontology.conceptEmbeddings
-      val mostSimilar: Map[String, Seq[(String, Float)]] = mostSimilarIndicators(primaryConceptEmbeddings, concepts, topN, reader).toMap
+    val primaryGrounder = grounders.find { grounder => grounder.name == EidosOntologyGrounder.PRIMARY_NAMESPACE }.get
+    val primaryConceptEmbeddings = primaryGrounder.conceptEmbeddings
+    val indicatorMaps = for {
+      ontology <- grounders.collect { case e: EidosOntologyGrounder => e }
+      namespace = ontology.name
+      if namespace != EidosOntologyGrounder.PRIMARY_NAMESPACE
+      concepts = ontology.conceptEmbeddings
+      mostSimilar: Map[String, Seq[(String, Float)]] = mostSimilarIndicators(primaryConceptEmbeddings, concepts, topN, reader).toMap
+      _ = mostSimilar.foreach(mapping => println(s"primary: ${mapping._1} --> most similar $namespace: ${mapping._2.mkString(",")}"))
+      } yield (namespace, mostSimilar)
 
-      mostSimilar.foreach(mapping => println(s"primary: ${mapping._1} --> most similar $namespace: ${mapping._2.mkString(",")}"))
-      (namespace, mostSimilar)
-    }
     val primaryIndicatorMap = indicatorMaps.find { indicatorMap => indicatorMap._1 == EidosOntologyGrounder.PRIMARY_NAMESPACE }.get
 
     // Write the mapping file
@@ -179,7 +180,7 @@ object OntologyMapper {
         for (primaryConcept <- primaryIndicatorMap._2.keys) {
           val mappings = indicatorMaps.flatMap(x => x._2(primaryConcept).map(p => (p._1, p._2, x._1)))
           val sorted = mappings.sortBy(-_._2)
-          
+
           for ((indicator, score, label) <- sorted) {
             pw.println(s"primaryConcept\t$primaryConcept\t$label\t$indicator\t$score")
             if (!primaryConcept.startsWith("wm/intervention")) { // Check the file for how this is named!
@@ -203,6 +204,7 @@ object OntologyMapper {
       }
     }
   }
+  
 
   /** Generates the mappings between the reader ontologies in a String format
     *
